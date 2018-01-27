@@ -1,143 +1,142 @@
 package com.example.carson_ho.handler_learning;
 
-import android.os.AsyncTask;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.HandlerThread;
+import android.os.Message;
 import android.support.v7.app.AppCompatActivity;
 import android.view.View;
 import android.widget.Button;
-import android.widget.ProgressBar;
 import android.widget.TextView;
 
 public class MainActivity extends AppCompatActivity {
 
-    // 线程变量
-    MyTask mTask;
-
-    // 主布局中的UI组件
-    Button button,cancel; // 加载、取消按钮
-    TextView text; // 更新的UI组件
-    ProgressBar progressBar; // 进度条
-
-    /**
-     * 步骤1：创建AsyncTask子类
-     * 注：
-     *   a. 继承AsyncTask类
-     *   b. 为3个泛型参数指定类型；若不使用，可用java.lang.Void类型代替
-     *      此处指定为：输入参数 = String类型、执行进度 = Integer类型、执行结果 = String类型
-     */
-    private class MyTask extends AsyncTask<String, Integer, String> {
-
-        /**
-         * 步骤2：根据需求，在AsyncTask子类内实现核心方法
-         */
-        // 方法1：onPreExecute（）
-        // 作用：执行 线程任务前的操作
-        @Override
-        protected void onPreExecute() {
-            text.setText("加载中");
-            // 执行前显示提示
-        }
-
-
-        // 方法2：doInBackground（）
-        // 作用：接收输入参数、执行任务中的耗时操作、返回 线程任务执行的结果
-        // 此处通过计算从而模拟“加载进度”的情况
-        @Override
-        protected String doInBackground(String... params) {
-
-            try {
-                int count = 0;
-                int length = 1;
-                while (count<99) {
-
-                    count += length;
-                    // 可调用publishProgress（）显示进度, 之后将执行onProgressUpdate（）
-                    publishProgress(count);
-                    // 模拟耗时任务
-                    Thread.sleep(50);
-                }
-            }catch (InterruptedException e) {
-                e.printStackTrace();
-            }
-
-            return null;
-        }
-
-        // 方法3：onProgressUpdate（）
-        // 作用：在主线程 显示线程任务执行的进度
-        @Override
-        protected void onProgressUpdate(Integer... progresses) {
-
-            progressBar.setProgress(progresses[0]);
-            text.setText("loading..." + progresses[0] + "%");
-
-        }
-
-        // 方法4：onPostExecute（）
-        // 作用：接收线程任务执行结果、将执行结果显示到UI组件
-        @Override
-        protected void onPostExecute(String result) {
-            // 执行完毕后，则更新UI
-            text.setText("加载完毕");
-        }
-
-        // 方法5：onCancelled()
-        // 作用：将异步任务设置为：取消状态
-        @Override
-        protected void onCancelled() {
-
-            text.setText("已取消");
-            progressBar.setProgress(0);
-
-        }
-    }
+    Handler mainHandler,workHandler;
+    HandlerThread mHandlerThread;
+    TextView text;
+    Button button1,button2,button3;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-
-        // 绑定UI组件
         setContentView(R.layout.activity_main);
 
-        button = (Button) findViewById(R.id.button);
-        cancel = (Button) findViewById(R.id.cancel);
-        text = (TextView) findViewById(R.id.text);
-        progressBar = (ProgressBar) findViewById(R.id.progress_bar);
+        // 显示文本
+        text = (TextView) findViewById(R.id.text1);
+
+        // 创建与主线程关联的Handler
+        mainHandler = new Handler();
 
         /**
-         * 步骤3：创建AsyncTask子类的实例对象（即 任务实例）
-         * 注：AsyncTask子类的实例必须在UI线程中创建
-         */
-        mTask = new MyTask();
+          * 步骤1：创建HandlerThread实例对象
+          * 传入参数 = 线程名字，作用 = 标记该线程
+          */
+        mHandlerThread = new HandlerThread("handlerThread");
 
-        // 加载按钮按按下时，则启动AsyncTask
-        // 任务完成后更新TextView的文本
-        button.setOnClickListener(new View.OnClickListener() {
+        /**
+         * 步骤2：启动线程
+         */
+        mHandlerThread.start();
+
+        /**
+         * 步骤3：创建工作线程Handler & 复写handleMessage（）
+         * 作用：关联HandlerThread的Looper对象、实现消息处理操作 & 与其他线程进行通信
+         * 注：消息处理操作（HandlerMessage（））的执行线程 = mHandlerThread所创建的工作线程中执行
+         */
+
+        workHandler = new Handler(mHandlerThread.getLooper()){
+            @Override
+            // 消息处理的操作
+            public void handleMessage(Message msg)
+            {
+                //设置了两种消息处理操作,通过msg来进行识别
+                switch(msg.what){
+                    // 消息1
+                    case 1:
+                        try {
+                            //延时操作
+                            Thread.sleep(1000);
+                        } catch (InterruptedException e) {
+                            e.printStackTrace();
+                        }
+                        // 通过主线程Handler.post方法进行在主线程的UI更新操作
+                        mainHandler.post(new Runnable() {
+                            @Override
+                            public void run () {
+                                text.setText("我爱学习");
+                            }
+                        });
+                        break;
+
+                    // 消息2
+                    case 2:
+                        try {
+                            Thread.sleep(3000);
+                        } catch (InterruptedException e) {
+                            e.printStackTrace();
+                        }
+                        mainHandler.post(new Runnable() {
+                            @Override
+                            public void run () {
+                                text.setText("我不喜欢学习");
+                            }
+                        });
+                        break;
+                    default:
+                        break;
+                }
+            }
+        };
+
+        /**
+         * 步骤4：使用工作线程Handler向工作线程的消息队列发送消息
+         * 在工作线程中，当消息循环时取出对应消息 & 在工作线程执行相关操作
+         */
+        // 点击Button1
+        button1 = (Button) findViewById(R.id.button1);
+        button1.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
 
-                /**
-                 * 步骤4：手动调用execute(Params... params) 从而执行异步线程任务
-                 * 注：
-                 *    a. 必须在UI线程中调用
-                 *    b. 同一个AsyncTask实例对象只能执行1次，若执行第2次将会抛出异常
-                 *    c. 执行任务中，系统会自动调用AsyncTask的一系列方法：onPreExecute() 、doInBackground()、onProgressUpdate() 、onPostExecute()
-                 *    d. 不能手动调用上述方法
-                 */
-                mTask.execute();
+                // 通过sendMessage（）发送
+                // a. 定义要发送的消息
+                Message msg = Message.obtain();
+                msg.what = 1; //消息的标识
+                msg.obj = "A"; // 消息的存放
+                // b. 通过Handler发送消息到其绑定的消息队列
+                workHandler.sendMessage(msg);
             }
         });
 
-        cancel = (Button) findViewById(R.id.cancel);
-        cancel.setOnClickListener(new View.OnClickListener() {
+        // 点击Button2
+        button2 = (Button) findViewById(R.id.button2);
+        button2.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                // 取消一个正在执行的任务,onCancelled方法将会被调用
-                mTask.cancel(true);
+
+                // 通过sendMessage（）发送
+                // a. 定义要发送的消息
+                Message msg = Message.obtain();
+                msg.what = 2; //消息的标识
+                msg.obj = "B"; // 消息的存放
+                // b. 通过Handler发送消息到其绑定的消息队列
+                workHandler.sendMessage(msg);
+            }
+        });
+
+        // 点击Button3
+        // 作用：退出消息循环
+        button3 = (Button) findViewById(R.id.button3);
+        button3.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                mHandlerThread.quit();
             }
         });
 
     }
 
 }
+
+
 
